@@ -1,0 +1,48 @@
+□ 설치 사항
+  ○ Docker 및 Docker-Compose 설치 (모든 서버)
+    목적 : 하이퍼렛져 컨테이너 구동 및 상호 통신
+	curl -fsSL https://get.docker.com -o get-docker.sh
+	sh get-docker.sh
+	curl -SL https://github.com/docker/compose/releases/download/v2.18.1/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+	ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+	chmod a+x /usr/local/bin/docker-compose
+	systemctl enable docker
+	systemctl start docker
+	
+  ○ 하이퍼렛져 설치 (모든 서버)
+	목적 : 실행 쉘파일 및 기본 도커 이미지 다운로드
+	curl -sSLO https://raw.githubusercontent.com/hyperledger/fabric/main/scripts/install-fabric.sh && chmod +x install-fabric.sh
+	./install-fabric.sh
+
+  ○ Go 설치(192.168.0.200, 192.168.0.240)
+    목적 : 체인코드 실행
+    https://go.dev/dl/ 에서 go1.20.4.src.tar.gz 파일 다운로드하여 192.168.0.200 및 192.168.0.240 서버에 업로드
+	압축 해제 : rm -rf /usr/local/go && tar -C /usr/local -xzf go1.20.4.linux-amd64.tar.gz
+	etc/profile에 환경 변수 설정 : export PATH=$PATH:/usr/local/go/bin
+	Go 설치 확인 : go version
+  
+  ○ jq 설치(192.168.0.200, 192.168.0.240)
+	목적 : 하이퍼렛져 앵커 피어 설정을 위한 명령어 중, jq 를 이용한 명령이 있음
+	yum install -y epel-release
+	yum install –y jq
+
+
+□ 설치 이후 네트워크 구성
+  - 192.168.0.200 서버에서
+	docker swarm init --advertise-addr 192.168.0.200
+	실행 후, docker swarm join --token <토큰ID> 192.168.0.200:2377 이 출력되는데, 이 명령문을 복사한다.
+	오버레이 네트워크 생성 : docker network create --attachable --driver overlay fmd-network
+
+  - 192.168.0.240 및 192.168.0.245 서버에서 위 swarm join 결과로 출력된 실행명령을 붙여넣기 및 실행
+	docker swarm join --token <토큰ID> 192.168.0.200:2377
+  
+  - 192.168.0.200 서버에서 타 노드를 manager로 참여시킴
+    docker node promote kafka1.fmd
+    docker node promote kafka2.fmd
+    이후, docker node ls 명령어를 실행하여 아래와 같이 출력되면 정상 구성된 것임
+	
+	ID                            HOSTNAME     STATUS    AVAILABILITY   MANAGER STATUS   ENGINE VERSION
+	j2fv5w9dqnxp7j5imuch1qxxc     kafka1.fmd   Ready     Active         Reachable        24.0.1
+	ad1m9r14jn5vbscq484liwzje     kafka2.fmd   Ready     Active         Leader           24.0.1
+	hh0ex026pkarusb23pilp08x4 *   kafka3.fmd   Ready     Active         Reachable        24.0.1    
+	
